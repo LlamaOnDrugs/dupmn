@@ -101,6 +101,7 @@ function load_profile() {
 	EXEC_COIN_DAEMON="${prof[COIN_PATH]}$COIN_DAEMON"
 	EXEC_COIN_CLI="${prof[COIN_PATH]}$COIN_CLI"
 	FORCE_LISTEN="${prof[FORCE_LISTEN]}"
+	SENTINEL_CONFIG="${prof[SENTINEL_CONFIG]}"
 
 	if [[ "$2" == "1" ]]; then
 		if [[ ! -f "$EXEC_COIN_DAEMON" ]]; then
@@ -238,6 +239,8 @@ function install_proc() {
 	fi
 
 	new_folder="$COIN_FOLDER$2"
+	sentinel_folder="sentinel"
+	sentinel_conf="sentinel.conf"
 
 	if [[ ! $NEW_KEY ]]; then
 		for (( i=0; i<=$DUP_COUNT; i++ )); do
@@ -255,12 +258,13 @@ function install_proc() {
 
 	mkdir $new_folder > /dev/null 2>&1
 	cp $COIN_FOLDER/$COIN_CONFIG $new_folder
+	cp -R $COIN_FOLDER/sentinel $new_folder
 
 	local new_user=$(conf_get_value $COIN_FOLDER/$COIN_CONFIG "rpcuser")
 	local new_pass=$(conf_get_value $COIN_FOLDER/$COIN_CONFIG "rpcpassword")
 	new_user=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w $([[ ${#new_user} -gt 3 ]] && echo ${#new_user} || echo 10) | head -n 1)
 	new_pass=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w $([[ ${#new_pass} -gt 6 ]] && echo ${#new_pass} || echo 22) | head -n 1)
-
+	$(conf_set_value $new_folder$SENTINEL_CONFIG "quantisnet_conf"		${new_folder}/$COIN_CONFIG 1)
 	$(conf_set_value $new_folder/$COIN_CONFIG "rpcuser"           $new_user 1)
 	$(conf_set_value $new_folder/$COIN_CONFIG "rpcpassword"       $new_pass 1)
 	$(conf_set_value $new_folder/$COIN_CONFIG "rpcport"           $NEW_RPC  1)
@@ -471,7 +475,6 @@ function cmd_install() {
 			fi
 		fi
 	fi
-
 	DUP_COUNT=$(($DUP_COUNT+1))
 	configure_systemd $2
 
@@ -813,6 +816,32 @@ function cmd_list() {
 		done
 	fi
 }
+
+function cmd_generate() {
+	# [$1 = profile_name]
+
+	if [[ ! $1 ]]; then
+		local -A conf=$(get_conf .dupmn/dupmn.conf)
+		if [ ${#conf[@]} -eq 0 ]; then
+			echo -e "(no profiles added)"
+		else
+			for var in "${!conf[@]}"; do
+				echo -e "${CYAN}$var${NC} : ${conf[$var]}"
+			done
+			echo -e "Total count : $(echo ${conf[@]} | tr ' ' '\n' | cut -d '=' -f2 | awk '{ SUM += $1 } END { print SUM }') dupes + $(echo ${#conf[@]}) main nodes"
+		fi
+	else
+		function print_dup_info() {
+			local dup_ip=$(conf_get_value $COIN_FOLDER$1/$COIN_CONFIG "masternodeaddr")
+			local mnstatus=$(try_cmd $(exec_coin cli $1) "masternodedebug" "masternode debug")
+			echo -e  " ${YELLOW}$([[ ! $dup_ip ]] && echo $(conf_get_value $COIN_FOLDER$1/$COIN_CONFIG "externalip") || echo "$dup_ip")${NC} ${GREEN}$(conf_get_value $COIN_FOLDER$1/$COIN_CONFIG masternodeprivkey)${NC}"
+		}
+		for (( i=1; i<=$DUP_COUNT; i++ )); do
+			echo -e "MN$i$(print_dup_info $i)"
+		done
+	fi
+}
+
 function cmd_swapfile() {
 	# <$1 = size_in_mbytes>
 
@@ -900,13 +929,13 @@ function cmd_help() {
 }
 function cmd_update() {
 	echo -e "===================================================\
-			 \n   ██████╗ ██╗   ██╗██████╗ ███╗   ███╗███╗   ██╗  \
-			 \n   ██╔══██╗██║   ██║██╔══██╗████╗ ████║████╗  ██║  \
-			 \n   ██║  ██║██║   ██║██████╔╝██╔████╔██║██╔██╗ ██║  \
-			 \n   ██║  ██║██║   ██║██╔═══╝ ██║╚██╔╝██║██║╚██╗██║  \
-			 \n   ██████╔╝╚██████╔╝██║     ██║ ╚═╝ ██║██║ ╚████║  \
-			 \n   ╚═════╝  ╚═════╝ ╚═╝     ╚═╝     ╚═╝╚═╝  ╚═══╝  \
-			 \n                                ╗ made by neo3587 ╔\
+			 \n   â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•— â–ˆâ–ˆâ•—   â–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•— â–ˆâ–ˆâ–ˆâ•—   â–ˆâ–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ•—   â–ˆâ–ˆâ•—  \
+			 \n   â–ˆâ–ˆâ•”â•â•â–ˆâ–ˆâ•—â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•”â•â•â–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ•— â–ˆâ–ˆâ–ˆâ–ˆâ•‘â–ˆâ–ˆâ–ˆâ–ˆâ•—  â–ˆâ–ˆâ•‘  \
+			 \n   â–ˆâ–ˆâ•‘  â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•â–ˆâ–ˆâ•”â–ˆâ–ˆâ–ˆâ–ˆâ•”â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•”â–ˆâ–ˆâ•— â–ˆâ–ˆâ•‘  \
+			 \n   â–ˆâ–ˆâ•‘  â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•”â•â•â•â• â–ˆâ–ˆâ•‘â•šâ–ˆâ–ˆâ•”â•â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘â•šâ–ˆâ–ˆâ•—â–ˆâ–ˆâ•‘  \
+			 \n   â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•â•šâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•â–ˆâ–ˆâ•‘     â–ˆâ–ˆâ•‘ â•šâ•â• â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘ â•šâ–ˆâ–ˆâ–ˆâ–ˆâ•‘  \
+			 \n   â•šâ•â•â•â•â•â•  â•šâ•â•â•â•â•â• â•šâ•â•     â•šâ•â•     â•šâ•â•â•šâ•â•  â•šâ•â•â•â•  \
+			 \n                                â•— made by neo3587 â•”\
 			 \n           Source: ${CYAN}https://github.com/neo3587/dupmn${NC}\
 			 \n   FAQs: ${CYAN}https://github.com/neo3587/dupmn/wiki/FAQs${NC}\
 			 \n  BTC Donations: ${YELLOW}3F6J19DmD5jowwwQbE9zxXoguGPVR716a7${NC}\
@@ -1023,37 +1052,41 @@ function main() {
 	cd ~
 
 	case "$1" in
+		"generate")
+			[[ $2 ]] && load_profile $2 "1"
+			cmd_generate $2
+			;;
 		"profadd")
-			exit_no_param "$2" "${YELLOW}dupmn profadd <prof_file> [prof_name]${NC} requires a profile file and optionally a new profile name as parameters"
+			exit_no_param $2 "${YELLOW}dupmn profadd <prof_file> [prof_name]${NC} requires a profile file and optionally a new profile name as parameters"
 			cd $curr_dir
 			cmd_profadd $2 $3
 			;;
 		"profdel")
-			exit_no_param "$2" "${YELLOW}dupmn profadd <prof_name>${NC} requires a profile name as parameter"
+			exit_no_param $2 "${YELLOW}dupmn profadd <prof_name>${NC} requires a profile name as parameter"
 			load_profile $2
 			cmd_profdel $2
 			;;
 		"install")
-			exit_no_param "$2" "${YELLOW}dupmn install <coin_name> [opt_params]${NC} requires a profile name of an added profile as a parameter"
+			exit_no_param $2 "${YELLOW}dupmn install <coin_name> [opt_params]${NC} requires a profile name of an added profile as a parameter"
 			load_profile $2 "1"
 			opt_install_params "${@:3}"
 			cmd_install $2 $(($DUP_COUNT+1))
 			;;
 		"reinstall")
-			exit_no_param "$3" "${YELLOW}dupmn reinstall <coin_name> <number> [opt_params]${NC} requires a profile name and a instance as parameters"
+			exit_no_param $3 "${YELLOW}dupmn reinstall <coin_name> <number> [opt_params]${NC} requires a profile name and a instance as parameters"
 			load_profile $2 "1"
 			instance_valid $3
 			opt_install_params "${@:4}"
 			cmd_reinstall $2 $(stoi $3)
 			;;
 		"uninstall")
-			exit_no_param "$3" "${YELLOW}dupmn uninstall <coin_name> <number|all>${NC} requires a profile name and a number (or all) as parameters"
+			exit_no_param $3 "${YELLOW}dupmn uninstall <coin_name> <number|all>${NC} requires a profile name and a number (or all) as parameters"
 			load_profile $2
 			[[ $3 != "all" ]] && instance_valid $3
 			cmd_uninstall $2 $([[ $3 == "all" ]] && echo "all" || echo $(stoi $3))
 			;;
 		"bootstrap")
-			exit_no_param "$3" "${YELLOW}dupmn bootstrap <prof_name> <number|all> [number]${NC} requires a profile name and a number as parameters"
+			exit_no_param $3 "${YELLOW}dupmn bootstrap <prof_name> <number|all> [number]${NC} requires a profile name and a number as parameters"
 			load_profile $2 "1"
 			[[ $3 != "all" ]] && instance_valid $3 "1"
 			[[ $4 ]] && instance_valid $4 "1"
@@ -1063,7 +1096,7 @@ function main() {
 			cmd_iplist
 			;;
 		"ipadd")
-			exit_no_param "$3" "${YELLOW}dupmn ipadd <ip> <netmask> [interface]${NC} requires a IP, a netmask and a interface name (if there's more than 1)"
+			exit_no_param $3 "${YELLOW}dupmn ipadd <ip> <netmask> [interface]${NC} requires a IP, a netmask and a interface name (if there's more than 1)"
 			ip_parse $2
 			cmd_ipmod "add" $2 $3 $4
 			;;
@@ -1073,13 +1106,13 @@ function main() {
 			cmd_ipmod "del" $2 $3 $4
 			;;
 		"rpcchange")
-			exit_no_param "$3" "${YELLOW}dupmn rpcchange <prof_name> <number> [port]${NC} requires a profile name, instance number and optionally a port number as parameters"
+			exit_no_param $3 "${YELLOW}dupmn rpcchange <prof_name> <number> [port]${NC} requires a profile name, instance number and optionally a port number as parameters"
 			load_profile $2 "1"
 			instance_valid $3
 			cmd_rpcchange $2 $(stoi $3) $4
 			;;
 		"systemctlall")
-			exit_no_param "$3" "${YELLOW}dupmn systemctlall <prof_name> <command>${NC} requires a profile name and a command as parameters"
+			exit_no_param $3 "${YELLOW}dupmn systemctlall <prof_name> <command>${NC} requires a profile name and a command as parameters"
 			load_profile $2
 			cmd_systemctlall $2 $3
 			;;
@@ -1088,7 +1121,7 @@ function main() {
 			cmd_list $2
 			;;
 		"swapfile")
-			exit_no_param "$2" "${YELLOW}dupmn swapfile <size_in_mbytes>${NC} requires a number as parameter"
+			exit_no_param $2 "${YELLOW}dupmn swapfile <size_in_mbytes>${NC} requires a number as parameter"
 			cmd_swapfile $2
 			;;
 		"checkmem")
