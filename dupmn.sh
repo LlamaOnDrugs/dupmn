@@ -264,7 +264,6 @@ function install_proc() {
 	local new_pass=$(conf_get_value $COIN_FOLDER/$COIN_CONFIG "rpcpassword")
 	new_user=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w $([[ ${#new_user} -gt 3 ]] && echo ${#new_user} || echo 10) | head -n 1)
 	new_pass=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w $([[ ${#new_pass} -gt 6 ]] && echo ${#new_pass} || echo 22) | head -n 1)
-	
 	$(conf_set_value $new_folder$SENTINEL_CONFIG "quantisnet_conf"		${new_folder}/$COIN_CONFIG 1)
 	$(conf_set_value $new_folder/$COIN_CONFIG "rpcuser"           $new_user 1)
 	$(conf_set_value $new_folder/$COIN_CONFIG "rpcpassword"       $new_pass 1)
@@ -272,15 +271,6 @@ function install_proc() {
 	$(conf_set_value $new_folder/$COIN_CONFIG "listen"            "0"       1)
 	$(conf_set_value $new_folder/$COIN_CONFIG "masternodeprivkey" $NEW_KEY  1)
 	[[ ! $(grep "addnode=127.0.0.1" $new_folder/$COIN_CONFIG) ]] && echo "addnode=127.0.0.1" >> $new_folder/$COIN_CONFIG
-
-		#write out current crontab
-  		crontab -l > mycron
-  		#echo new cron into cron file
-  		echo "* * * * * cd ${new_folder}/sentinel && ./venv/bin/python bin/sentinel.py >/dev/null 2>&1" >> mycron
-  		#install new cron file
-  		crontab mycron
-		rm mycron
-
 
 	$(make_chmod_file /usr/bin/$COIN_CLI-0      "#!/bin/bash\n$EXEC_COIN_CLI \$@")
 	$(make_chmod_file /usr/bin/$COIN_DAEMON-0   "#!/bin/bash\n$EXEC_COIN_DAEMON \$@")
@@ -615,7 +605,7 @@ function cmd_bootstrap() {
 				[[ $($COIN_CLI-$2 stop 2> /dev/null) ]] && sleep 3
 			fi
 			echo "Copying stored chain from node $1 to $2... (may take a while)"
-			for x in $(ls $(get_folder $2) | grep -v ".conf\|wallet.dat"); do
+			for x in $(ls $(get_folder $2) | grep -v ".conf\|wallet.dat\|sentinel"); do
 				rm -rf $(get_folder $2)$x;
 			done
 			rsync -adm --ignore-existing --info=progress2 $(get_folder $1) $(get_folder $2)
@@ -939,13 +929,13 @@ function cmd_help() {
 }
 function cmd_update() {
 	echo -e "===================================================\
-			 \n   â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•— â–ˆâ–ˆâ•—   â–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•— â–ˆâ–ˆâ–ˆâ•—   â–ˆâ–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ•—   â–ˆâ–ˆâ•—  \
-			 \n   â–ˆâ–ˆâ•”â•â•â–ˆâ–ˆâ•—â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•”â•â•â–ˆâ–ˆâ•—â–ˆâ–ˆâ–ˆâ–ˆâ•— â–ˆâ–ˆâ–ˆâ–ˆâ•‘â–ˆâ–ˆâ–ˆâ–ˆâ•—  â–ˆâ–ˆâ•‘  \
-			 \n   â–ˆâ–ˆâ•‘  â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•â–ˆâ–ˆâ•”â–ˆâ–ˆâ–ˆâ–ˆâ•”â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•”â–ˆâ–ˆâ•— â–ˆâ–ˆâ•‘  \
-			 \n   â–ˆâ–ˆâ•‘  â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘   â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•”â•â•â•â• â–ˆâ–ˆâ•‘â•šâ–ˆâ–ˆâ•”â•â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘â•šâ–ˆâ–ˆâ•—â–ˆâ–ˆâ•‘  \
-			 \n   â–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•â•šâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ–ˆâ•”â•â–ˆâ–ˆâ•‘     â–ˆâ–ˆâ•‘ â•šâ•â• â–ˆâ–ˆâ•‘â–ˆâ–ˆâ•‘ â•šâ–ˆâ–ˆâ–ˆâ–ˆâ•‘  \
-			 \n   â•šâ•â•â•â•â•â•  â•šâ•â•â•â•â•â• â•šâ•â•     â•šâ•â•     â•šâ•â•â•šâ•â•  â•šâ•â•â•â•  \
-			 \n                                â•— made by neo3587 â•”\
+			 \n   ██████╗ ██╗   ██╗██████╗ ███╗   ███╗███╗   ██╗  \
+			 \n   ██╔══██╗██║   ██║██╔══██╗████╗ ████║████╗  ██║  \
+			 \n   ██║  ██║██║   ██║██████╔╝██╔████╔██║██╔██╗ ██║  \
+			 \n   ██║  ██║██║   ██║██╔═══╝ ██║╚██╔╝██║██║╚██╗██║  \
+			 \n   ██████╔╝╚██████╔╝██║     ██║ ╚═╝ ██║██║ ╚████║  \
+			 \n   ╚═════╝  ╚═════╝ ╚═╝     ╚═╝     ╚═╝╚═╝  ╚═══╝  \
+			 \n                                ╗ made by neo3587 ╔\
 			 \n           Source: ${CYAN}https://github.com/neo3587/dupmn${NC}\
 			 \n   FAQs: ${CYAN}https://github.com/neo3587/dupmn/wiki/FAQs${NC}\
 			 \n  BTC Donations: ${YELLOW}3F6J19DmD5jowwwQbE9zxXoguGPVR716a7${NC}\
