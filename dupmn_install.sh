@@ -15,7 +15,7 @@ if [ ! "$(command -v curl)" ]; then
 	sudo apt-get install curl
 fi
 
-dupmn_update=$(curl -s https://raw.githubusercontent.com/neo3587/dupmn/master/dupmn.sh)
+dupmn_update=$(curl -s https://raw.githubusercontent.com/LlamaOnDrugs/dupmn/master/dupmn.sh)
 
 echo -e "\n===================================================\
 		\n   ██████╗ ██╗   ██╗██████╗ ███╗   ███╗███╗   ██╗  \
